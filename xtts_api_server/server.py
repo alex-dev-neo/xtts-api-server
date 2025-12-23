@@ -20,6 +20,11 @@ from xtts_api_server.tts_funcs import TTSWrapper,supported_languages,InvalidSett
 from xtts_api_server.RealtimeTTS import TextToAudioStream, CoquiEngine
 from xtts_api_server.modeldownloader import check_stream2sentence_version,install_deepspeed_based_on_python_version
 
+from xtts_api_server.normalizer import HybridNormalizer
+
+# Инициализируем нормализатор после создания XTTS
+normalizer = HybridNormalizer()
+
 # Default Folders , you can change them via API
 DEVICE = os.getenv('DEVICE',"cuda")
 OUTPUT_FOLDER = os.getenv('OUTPUT', 'output')
@@ -86,6 +91,24 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+def apply_normalization(text: str) -> str:
+    logger.info(f"Original Text: {text}")
+    try:
+        # 1. Удаление ЭМОДЗИ
+        # Этот regex находит все символы из дополнительных плоскостей Unicode (эмодзи, значки)
+        text = re.sub(r'[\U00010000-\U0010ffff]', '', text)
+        
+        # 2. Нормализация (числа, англицизмы и т.д.)
+        text = normalizer.normalize(text)
+        
+        # 3. Очистка концовки (удаляем мусорные знаки)
+        text = text.rstrip(".,;:'\" \n\t-")
+        
+        logger.info(f"Normalized & Cleaned Text: {text}")
+    except Exception as e:
+        logger.warning(f"Normalization failed, using original text: {e}")
+    return text
 
 
 # Help funcs
@@ -279,8 +302,12 @@ async def tts_to_audio(request: SynthesisRequest, background_tasks: BackgroundTa
             engine.set_voice(speaker_wav)
             engine.language = request.language.lower()
            
+            # ПРИМЕНЯЕМ НОРМАЛИЗАЦИЮ
+            processed_text = apply_normalization(request.text)
+            logger.info(f"Processed text: {processed_text}")
+
             # Start streaming, works only on your local computer.
-            stream.feed(request.text)
+            stream.feed(processed_text)
             play_stream(stream,language)
 
             # It's a hack, just send 1 second of silence so that there is no sillyTavern error.
@@ -299,6 +326,10 @@ async def tts_to_audio(request: SynthesisRequest, background_tasks: BackgroundTa
             if XTTS.model_source == "local":
               logger.info(f"Processing TTS to audio with request: {request}")
 
+            # ПРИМЕНЯЕМ НОРМАЛИЗАЦИЮ
+            processed_text = apply_normalization(request.text)
+            logger.info(f"Processed text: {processed_text}")
+
             # Validate language code against supported languages.
             if request.language.lower() not in supported_languages:
                 raise HTTPException(status_code=400,
@@ -306,7 +337,7 @@ async def tts_to_audio(request: SynthesisRequest, background_tasks: BackgroundTa
 
             # Generate an audio file using process_tts_to_file.
             output_file_path = XTTS.process_tts_to_file(
-                text=request.text,
+                text=processed_text,
                 speaker_name_or_path=request.speaker_wav,
                 language=request.language.lower(),
                 file_name_or_path=f'{str(uuid4())}.wav'
@@ -331,12 +362,16 @@ async def tts_openai_compatible(request: OpenAIRequest, background_tasks: Backgr
     try:
         logger.info(f"Processing TTS to audio (MP3 22.05kHz) with request: {request}")
         
+        # ПРИМЕНЯЕМ НОРМАЛИЗАЦИЮ
+        processed_text = apply_normalization(request.input)
+        logger.info(f"Processed text: {processed_text}")
+
         temp_uuid = str(uuid4())
         orig_wav = os.path.join(XTTS.output_folder, f'{temp_uuid}_temp.wav')
         target_mp3 = os.path.join(XTTS.output_folder, f'{temp_uuid}.mp3')
 
         XTTS.process_tts_to_file(
-            text=request.input,
+            text=processed_text, # Используем обработанный текст
             speaker_name_or_path=request.voice,
             language=request.language.lower(),
             file_name_or_path=f'{temp_uuid}_temp.wav'
