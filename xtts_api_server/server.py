@@ -141,6 +141,13 @@ class SynthesisFileRequest(BaseModel):
     language: str
     file_name_or_path: str  
 
+class OpenAIRequest(BaseModel):
+    model: str = "tts-1"
+    input: str
+    voice: str
+    response_format: str = "wav"
+    speed: float = 1.0
+  
 @app.get("/speakers_list")
 def get_speakers():
     speakers = XTTS.get_speakers()
@@ -317,6 +324,28 @@ async def tts_to_audio(request: SynthesisRequest, background_tasks: BackgroundTa
             logger.error(e)
             raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
 
+@app.post("/v1/audio/speech")
+async def tts_openai_compatible(request: OpenAIRequest, background_tasks: BackgroundTasks):
+    try:
+        output_file_path = XTTS.process_tts_to_file(
+            text=request.input,
+            speaker_name_or_path=request.voice,
+            language="ru", 
+            file_name_or_path=f'{str(uuid4())}.wav'
+        )
+
+        if not XTTS.enable_cache_results:
+            background_tasks.add_task(os.unlink, output_file_path)
+
+        return FileResponse(
+            path=output_file_path,
+            media_type='audio/wav',
+            filename="output.wav",
+        )
+    except Exception as e:
+        logger.error(f"OpenAI Compatibility Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+      
 @app.post("/tts_to_file")
 async def tts_to_file(request: SynthesisFileRequest):
     try:
