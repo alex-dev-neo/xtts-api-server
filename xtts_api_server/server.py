@@ -14,6 +14,7 @@ from loguru import logger
 from argparse import ArgumentParser
 from pathlib import Path
 from uuid import uuid4
+from pydub import AudioSegment
 
 from xtts_api_server.tts_funcs import TTSWrapper,supported_languages,InvalidSettingsError
 from xtts_api_server.RealtimeTTS import TextToAudioStream, CoquiEngine
