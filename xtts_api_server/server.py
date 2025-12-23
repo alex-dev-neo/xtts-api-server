@@ -146,8 +146,9 @@ class OpenAIRequest(BaseModel):
     model: str = "tts-1"
     input: str
     voice: str
-    response_format: str = "wav"
+    response_format: str = "mp3"
     speed: float = 1.0
+    language: str = "ru"
   
 @app.get("/speakers_list")
 def get_speakers():
@@ -328,11 +329,12 @@ async def tts_to_audio(request: SynthesisRequest, background_tasks: BackgroundTa
 @app.post("/v1/audio/speech")
 async def tts_openai_compatible(request: OpenAIRequest, background_tasks: BackgroundTasks):
     try:
-        logger.info(f"Processing TTS to audio (MP3) with request: {request}")
-
+        logger.info(f"Processing TTS to audio (MP3 22.05kHz) with request: {request}")
+        
         temp_uuid = str(uuid4())
         orig_wav = os.path.join(XTTS.output_folder, f'{temp_uuid}_temp.wav')
-        
+        target_mp3 = os.path.join(XTTS.output_folder, f'{temp_uuid}.mp3')
+
         XTTS.process_tts_to_file(
             text=request.input,
             speaker_name_or_path=request.voice,
@@ -340,11 +342,8 @@ async def tts_openai_compatible(request: OpenAIRequest, background_tasks: Backgr
             file_name_or_path=f'{temp_uuid}_temp.wav'
         )
 
-        target_mp3 = os.path.join(XTTS.output_folder, f'{temp_uuid}.mp3')
-        
         audio = AudioSegment.from_file(orig_wav)
         audio = audio.set_frame_rate(22050).set_channels(1)
-        
         audio.export(target_mp3, format="mp3", bitrate="96k")
 
         if os.path.exists(orig_wav):
@@ -353,11 +352,7 @@ async def tts_openai_compatible(request: OpenAIRequest, background_tasks: Backgr
         if not XTTS.enable_cache_results:
             background_tasks.add_task(os.unlink, target_mp3)
 
-        return FileResponse(
-            path=target_mp3,
-            media_type='audio/mpeg',
-            filename="output.mp3",
-        )
+        return FileResponse(path=target_mp3, media_type='audio/mpeg', filename="output.mp3")
     except Exception as e:
         logger.error(f"OpenAI MP3 Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
