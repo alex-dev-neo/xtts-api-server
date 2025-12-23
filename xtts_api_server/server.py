@@ -305,7 +305,6 @@ async def tts_to_audio(request: SynthesisRequest, background_tasks: BackgroundTa
            
             # ПРИМЕНЯЕМ НОРМАЛИЗАЦИЮ
             processed_text = apply_normalization(request.text)
-            logger.info(f"Processed text: {processed_text}")
 
             # Start streaming, works only on your local computer.
             stream.feed(processed_text)
@@ -329,7 +328,6 @@ async def tts_to_audio(request: SynthesisRequest, background_tasks: BackgroundTa
 
             # ПРИМЕНЯЕМ НОРМАЛИЗАЦИЮ
             processed_text = apply_normalization(request.text)
-            logger.info(f"Processed text: {processed_text}")
 
             # Validate language code against supported languages.
             if request.language.lower() not in supported_languages:
@@ -365,7 +363,6 @@ async def tts_openai_compatible(request: OpenAIRequest, background_tasks: Backgr
         
         # ПРИМЕНЯЕМ НОРМАЛИЗАЦИЮ
         processed_text = apply_normalization(request.input)
-        logger.info(f"Processed text: {processed_text}")
 
         temp_uuid = str(uuid4())
         orig_wav = os.path.join(XTTS.output_folder, f'{temp_uuid}_temp.wav')
