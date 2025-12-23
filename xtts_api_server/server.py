@@ -327,6 +327,8 @@ async def tts_to_audio(request: SynthesisRequest, background_tasks: BackgroundTa
 @app.post("/v1/audio/speech")
 async def tts_openai_compatible(request: OpenAIRequest, background_tasks: BackgroundTasks):
     try:
+        logger.info(f"Processing TTS to audio with request: {request}")
+      
         output_file_path = XTTS.process_tts_to_file(
             text=request.input,
             speaker_name_or_path=request.voice,
