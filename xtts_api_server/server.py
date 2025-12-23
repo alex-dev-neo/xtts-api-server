@@ -327,25 +327,38 @@ async def tts_to_audio(request: SynthesisRequest, background_tasks: BackgroundTa
 @app.post("/v1/audio/speech")
 async def tts_openai_compatible(request: OpenAIRequest, background_tasks: BackgroundTasks):
     try:
-        logger.info(f"Processing TTS to audio with request: {request}")
-      
-        output_file_path = XTTS.process_tts_to_file(
+        logger.info(f"Processing TTS to audio (MP3) with request: {request}")
+
+        temp_uuid = str(uuid4())
+        orig_wav = os.path.join(XTTS.output_folder, f'{temp_uuid}_temp.wav')
+        
+        XTTS.process_tts_to_file(
             text=request.input,
             speaker_name_or_path=request.voice,
-            language="ru", 
-            file_name_or_path=f'{str(uuid4())}.wav'
+            language=request.language.lower(),
+            file_name_or_path=f'{temp_uuid}_temp.wav'
         )
+
+        target_mp3 = os.path.join(XTTS.output_folder, f'{temp_uuid}.mp3')
+        
+        audio = AudioSegment.from_file(orig_wav)
+        audio = audio.set_frame_rate(22050).set_channels(1)
+        
+        audio.export(target_mp3, format="mp3", bitrate="96k")
+
+        if os.path.exists(orig_wav):
+            os.remove(orig_wav)
 
         if not XTTS.enable_cache_results:
-            background_tasks.add_task(os.unlink, output_file_path)
+            background_tasks.add_task(os.unlink, target_mp3)
 
         return FileResponse(
-            path=output_file_path,
-            media_type='audio/wav',
-            filename="output.wav",
+            path=target_mp3,
+            media_type='audio/mpeg',
+            filename="output.mp3",
         )
     except Exception as e:
-        logger.error(f"OpenAI Compatibility Error: {e}")
+        logger.error(f"OpenAI MP3 Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
       
 @app.post("/tts_to_file")
