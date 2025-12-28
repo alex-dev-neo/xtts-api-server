@@ -67,9 +67,9 @@ class HybridNormalizer:
         # 3. СЛОВАРЬ ЗАМЕН (IT & Brands)
         self.hard_replacements = {
             # Технические термины и бренды
-            r'\bOpenAI\b': 'Опен Эй-Ай',
+            r'\bOpenAI\b': 'Опен ЭйАй',
             r'\bChatGPT\b': 'Чат Джи-Пи-Ти',
-            r'\bGPT\b': 'Джи-Пи-Ти',
+            r'\bGPT\b': 'ДжиПиТи',
             r'\bGoogle\b': 'Гугл',
             r'\bNano\b': 'Нано',
             r'\bBanana\b': 'Банана',
@@ -90,6 +90,16 @@ class HybridNormalizer:
             r'\bкг\b': 'килограммов',
             r'\bг\.\b': 'года',
             r'°C': ' градусов Цельсия',
+            # Латинская 'C' (часто приходит из внешних API или AI)
+            r'\bCO₂\b': 'цеодв+а',
+            r'\bCO2\b': 'цеодв+а',    
+            # Кириллическая 'С' (если вы написали текст вручную на русской раскладке)
+            r'\bСО₂\b': 'цеодв+а',
+            r'\bСО2\b': 'цеодв+а',
+            r'\bppm\b': 'пипиэм',
+            r'мкг/м³': 'микрограмм на метр кубический',
+            r'мкг/м3': 'микрограмм на метр кубический',
+            r'\bPM2.5\b': 'пиэм два и пять',
         }
         
         self.genitive_prepositions = {'от', 'до', 'из', 'без', 'у', 'для', 'вокруг', 'около', 'с'}
@@ -128,9 +138,28 @@ class HybridNormalizer:
         return f"{h_txt} {h_end} {m_txt} {m_end}"
 
     def normalize(self, text):
-        # 1. Regex replacements
+        # 0. Обработка диапазонов (400-600 -> 400 до 600)
+        text = re.sub(r'(\d+)[–—-](\d+)', r'\1 до \2', text)
+
+        # 1. Regex replacements (OpenAI, CO2 и т.д.)
         for pattern, replacement in self.hard_replacements.items():
             text = re.sub(pattern, replacement, text, flags=re.IGNORECASE)
+
+        # Обработка процентов (находит число и знак %)
+        def replace_percent(m):
+            num = int(m.group(1))
+            # Генерируем текст числа
+            num_txt = num2words(num, lang='ru')
+            # Склоняем слово "процент" в зависимости от числа
+            if num % 10 == 1 and num % 100 != 11:
+                p_end = "процент"
+            elif 2 <= num % 10 <= 4 and (num % 100 < 10 or num % 100 > 20):
+                p_end = "процента"
+            else:
+                p_end = "процентов"
+            return f"{num_txt} {p_end}"
+
+        text = re.sub(r'(\d+)\s?%', replace_percent, text)
 
         text = re.sub(r'\b(\d{1,2}):(\d{2})\b', self._replace_time, text)
         
