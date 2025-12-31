@@ -142,9 +142,27 @@ class HybridNormalizer:
         return f"{h_txt} {h_end} {m_txt} {m_end}"
 
     def normalize(self, text):
-        # 0. Чистка текста от списков и лишних переносов
-        text = re.sub(r'^\d+\.\s+', '', text, flags=re.MULTILINE)
-        text = re.sub(r'\n+', ' ', text)
+        # 0. Форматирование списков: добавляем точку в конце и двойной перенос
+        def fix_list_items(m):
+            marker = m.group(1)
+            content = m.group(2).strip()
+            if not content:
+                return m.group(0)
+            # Добавляем точку, если нет пунктуации
+            if not content.endswith(('.', '!', '?', ';', ':', '—', '-')):
+                content += '.'
+            return f"\n\n{marker}{content}\n\n"
+
+        # 0.1 Обработка нумерованных списков и списков с тире
+        # Ищем в начале строки или после переноса
+        pattern = r'^\s*(\d+\.\s+|[-—–]\s+)(.+)$'
+        text = re.sub(pattern, fix_list_items, text, flags=re.MULTILINE)
+        
+        # Очистка: убираем лишние переносы (максимум два подряд)
+        text = re.sub(r'\n{3,}', '\n\n', text)
+        # Убираем пробелы в начале строк (кроме тех, что в списке, хотя их мы уже причесали)
+        text = re.sub(r'^[ \t]+', '', text, flags=re.MULTILINE)
+        text = text.strip()
 
         # 0. Обработка диапазонов (400-600 -> 400 до 600)
         # Поддерживаем разные типы тире и дефисов
@@ -178,13 +196,13 @@ class HybridNormalizer:
         text = re.sub(r'\b(\d{1,2}):(\d{2})\b', self._replace_time, text)
         
         def replace_float(m):
-            parts = m.group(0).split('.')
+            parts = re.split(r'[.,]', m.group(0))
             w, f = int(parts[0]), int(parts[1][0])
             w_txt = num2words(w, lang='ru', gender='f')
             f_txt = num2words(f, lang='ru', gender='f')
             f_end = "десятая" if f == 1 else "десятых"
             return f"{w_txt} целых {f_txt} {f_end}"
-        text = re.sub(r'\b\d+\.\d+\b', replace_float, text)
+        text = re.sub(r'\b\d+[.,]\d+\b', replace_float, text)
         
         text = re.sub(r'\b[A-Za-z]+\b', self._english_to_russian, text)
 
@@ -272,5 +290,6 @@ if __name__ == "__main__":
     norm = HybridNormalizer()
     t = "На следующую неделю прогнозируется переменная погода: с морозами до -6 в начале недели и потеплением до +12°C к концу."
     t = "Глава OpenAI жмёт руку главе Nano Banana от Google. Ничего необычного — просто мы тестируем новую модель ChatGPT Images 1.5."
+
     print(f"IN:  {t}")
     print(f"OUT: {norm.normalize(t)}")
