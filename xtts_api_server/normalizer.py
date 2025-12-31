@@ -139,7 +139,13 @@ class HybridNormalizer:
 
     def normalize(self, text):
         # 0. Обработка диапазонов (400-600 -> 400 до 600)
-        text = re.sub(r'(\d+)[–—-](\d+)', r'\1 до \2', text)
+        # Поддерживаем разные типы тире и дефисов
+        text = re.sub(r'(\d+)\s*[–—-]\s*(\d+)', r'\1 до \2', text)
+
+        # 0.1 Обработка знаков перед числами (+12 -> плюс 12, -6 -> минус 6)
+        # Используем пред-обработку, чтобы Natasha видела "плюс" и "минус" как отдельные слова
+        text = re.sub(r'(^|\s)\+(\d+)', r'\1плюс \2', text)
+        text = re.sub(r'(^|\s)-(\d+)', r'\1минус \2', text)
 
         # 1. Regex replacements (OpenAI, CO2 и т.д.)
         for pattern, replacement in self.hard_replacements.items():
@@ -215,10 +221,24 @@ class HybridNormalizer:
 
                     if natasha_case == 'genitive':
                         is_prep = False
+                        # Проверяем на 1 или 2 токена назад (из-за возможного "минус"/"плюс")
                         if i > 0 and doc.tokens[i-1].text.lower() in self.genitive_prepositions:
                             is_prep = True
+                        elif i > 1 and doc.tokens[i-2].text.lower() in self.genitive_prepositions and \
+                             doc.tokens[i-1].text.lower() in ['плюс', 'минус']:
+                            is_prep = True
+                            
                         if not is_prep:
                             target_case = 'nominative'
+
+                    # ОСОБЫЙ ХАК ДЛЯ "ДО"
+                    # Natasha иногда ошибается с синтаксической связью для "до", 
+                    # форсируем родительный падеж, если перед числом (или знаком) стоит "до"
+                    if i > 0 and doc.tokens[i-1].text.lower() == 'до':
+                        target_case = 'genitive'
+                    elif i > 1 and doc.tokens[i-2].text.lower() == 'до' and \
+                         doc.tokens[i-1].text.lower() in ['плюс', 'минус']:
+                        target_case = 'genitive'
 
                 try:
                     to_type = 'ordinal' if is_ordinal else 'cardinal'
@@ -235,7 +255,7 @@ class HybridNormalizer:
 # --- ТЕСТ ---
 if __name__ == "__main__":
     norm = HybridNormalizer()
+    t = "На следующую неделю прогнозируется переменная погода: с морозами до -6 в начале недели и потеплением до +12°C к концу."
     t = "Глава OpenAI жмёт руку главе Nano Banana от Google. Ничего необычного — просто мы тестируем новую модель ChatGPT Images 1.5."
-    t = "У нас около 500 миллионов компьютеров, способных работать под управлением Windows 11, которые еще не были обновлены, — заявил в разговоре с инвесторами главный операционный директор Dell Джеффри Кларк. Он пояснил, что речь идет не только об устройствах Dell, а вообще о всех компьютерах в мире, совместимых с системой от Microsoft."
     print(f"IN:  {t}")
     print(f"OUT: {norm.normalize(t)}")
