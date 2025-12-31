@@ -79,6 +79,9 @@ class HybridNormalizer:
             r'\bAndroid\b': 'Андроид',
             r'\bApple\b': 'Эппл', 
             r'\biPhone\b': 'Айфон',
+            r'\bOsmAnd\b': 'Османд',
+            r'\biOS\b': 'Айос',
+            r'\bOpenStreetMap\b': 'ОпенСтримМап',
             
             # Единицы и прочее
             r'\bUTC\b': 'Ю-Ти-Си',
@@ -88,6 +91,7 @@ class HybridNormalizer:
             r'\bkg\b': 'килограммов',
             r'\bкм\b': 'километров',
             r'\bкг\b': 'килограммов',
+            r'\bг\b': 'граммов',
             r'\bг\.\b': 'года',
             r'°C': ' градусов Цельсия',
             # Латинская 'C' (часто приходит из внешних API или AI)
@@ -102,8 +106,8 @@ class HybridNormalizer:
             r'\bPM2.5\b': 'пиэм два и пять',
         }
         
-        self.genitive_prepositions = {'от', 'до', 'из', 'без', 'у', 'для', 'вокруг', 'около', 'с'}
-        self.distance_units = {'километр', 'метр', 'миля', 'километров', 'метров', 'миль'}
+        self.genitive_prepositions = {'от', 'до', 'из', 'без', 'у', 'для', 'вокруг', 'около'}
+        self.distance_units = {'километр', 'метр', 'миля', 'километров', 'метров', 'миль', 'грамм', 'граммов', 'килограмм', 'килограммов'}
         self.months = {
             'январь', 'февраль', 'март', 'апрель', 'май', 'июнь',
             'июль', 'август', 'сентябрь', 'октябрь', 'ноябрь', 'декабрь',
@@ -138,6 +142,10 @@ class HybridNormalizer:
         return f"{h_txt} {h_end} {m_txt} {m_end}"
 
     def normalize(self, text):
+        # 0. Чистка текста от списков и лишних переносов
+        text = re.sub(r'^\d+\.\s+', '', text, flags=re.MULTILINE)
+        text = re.sub(r'\n+', ' ', text)
+
         # 0. Обработка диапазонов (400-600 -> 400 до 600)
         # Поддерживаем разные типы тире и дефисов
         text = re.sub(r'(\d+)\s*[–—-]\s*(\d+)', r'\1 до \2', text)
@@ -201,12 +209,19 @@ class HybridNormalizer:
                     next_token = doc.tokens[i+1]
                     lemma = next_token.lemma.lower() if next_token.lemma else next_token.text.lower()
                     
-                    if lemma in ['год', 'г', 'г.']:
+                    if lemma in ['год', 'г.']:
                         is_ordinal = True
                         target_case = self.case_map.get(next_token.feats.get('Case'), 'prepositional')
                     elif lemma in self.months:
                         is_ordinal = True
                         target_case = 'genitive'
+
+                if i + 1 < len(doc.tokens):
+                    next_token = doc.tokens[i+1]
+                    next_lemma = next_token.lemma.lower() if next_token.lemma else next_token.text.lower()
+                    if next_lemma in self.distance_units or next_lemma == 'грамм':
+                        is_ordinal = False
+                        target_case = 'nominative'
 
                 # Natasha Context
                 head = next((t for t in doc.tokens if t.id == token.head_id), None)
