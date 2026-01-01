@@ -83,6 +83,9 @@ class HybridNormalizer:
             r'\biOS\b': 'Айос',
             r'\bOpenStreetMap\b': 'ОпенСтримМап',
             
+            r'\bDone\b': 'Готово',
+            r'\bUnable to get response\b': 'Невозможно получить ответ',
+
             # Единицы и прочее
             r'\bUTC\b': 'Ю-Ти-Си',
             r'\bGMT\b': 'Джи-Эм-Ти',
