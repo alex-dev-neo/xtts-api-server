@@ -82,6 +82,7 @@ class HybridNormalizer:
             r'\bOsmAnd\b': 'Османд',
             r'\biOS\b': 'Айос',
             r'\bOpenStreetMap\b': 'ОпенСтримМап',
+            r'\ПМ2.5\b': 'Пиэм дваипять',
             
             r'\bDone\b': 'Готово',
             r'\bUnable to get response\b': 'Невозможно получить ответ',
