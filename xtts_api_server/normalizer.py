@@ -181,12 +181,12 @@ class HybridNormalizer:
 
         # 0. Обработка диапазонов (400-600 -> 400 до 600)
         # Поддерживаем разные типы тире и дефисов
-        text = re.sub(r'(\d+)\s*[–—-]\s*(\d+)', r'\1 до \2', text)
+        text = re.sub(r'([+\-−]?\d+)\s*[\-–—−…]\s*([+\-−]?\d+)', r'\1 до \2', text)
 
         # 0.1 Обработка знаков перед числами (+12 -> плюс 12, -6 -> минус 6)
         # Используем пред-обработку, чтобы Natasha видела "плюс" и "минус" как отдельные слова
-        text = re.sub(r'(^|\s)\+(\d+)', r'\1плюс \2', text)
-        text = re.sub(r'(^|\s)-(\d+)', r'\1минус \2', text)
+        text = re.sub(r'(^|\s)\+\s*(\d+)', r'\1плюс \2', text)
+        text = re.sub(r'(^|\s)[\-−]\s*(\d+)', r'\1минус \2', text)
 
         # 1. Regex replacements (OpenAI, CO2 и т.д.)
         for pattern, replacement in self.hard_replacements.items():
